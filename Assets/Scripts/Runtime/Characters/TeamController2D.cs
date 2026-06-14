@@ -19,7 +19,7 @@ namespace ParkourShooter.Runtime.Characters
         /// <summary>アクティブキャラクターが変更された時に通知されるイベントです。</summary>
         public static event Action<Transform> ActiveCharacterChanged;
 
-        /// <summary>切り替え対象となるキャラクター一覧です。</summary>
+        /// <summary>切り替え対象となる見た目スロット一覧です。</summary>
         [SerializeField] private List<Transform> characters = new();
 
         /// <summary>アクティブキャラクターを追従する CinemachineCamera です。</summary>
@@ -37,11 +37,14 @@ namespace ParkourShooter.Runtime.Characters
         /// <summary>切り替え演出中かどうかです。</summary>
         private bool isSwitching;
 
-        /// <summary>現在操作中のキャラクターです。</summary>
+        /// <summary>現在表示中のキャラクタースロットです。</summary>
         public Transform ActiveCharacter => characters.Count == 0 ? null : characters[activeIndex];
 
-        /// <summary>登録されている全キャラクターです。</summary>
+        /// <summary>登録されている全キャラクタースロットです。</summary>
         public IReadOnlyList<Transform> Characters => characters;
+
+        /// <summary>実際に移動・攻撃・当たり判定を持つ共有Rootです。</summary>
+        public Transform ControlRoot => transform;
 
         /// <summary>
         /// カメラオフセット制御を準備し、初期キャラクターを有効化します。
@@ -98,9 +101,8 @@ namespace ParkourShooter.Runtime.Characters
 
             var previous = characters[activeIndex];
             var next = characters[nextIndex];
-            next.position = previous.position;
             next.gameObject.SetActive(true);
-            SetCharacterControl(next, false);
+            NormalizeSlotTransform(next);
             SetCharacterVisualAlpha(previous, 1f);
             SetCharacterVisualAlpha(next, 0.35f);
 
@@ -116,7 +118,7 @@ namespace ParkourShooter.Runtime.Characters
         }
 
         /// <summary>
-        /// 指定キャラクターだけを操作可能にし、カメラとボスの追従対象を更新します。
+        /// 指定キャラクタースロットだけを表示し、カメラとボスは共有Rootを追従させます。
         /// </summary>
         /// <param name="index">有効化するキャラクターのインデックスです。</param>
         /// <param name="snapReferences">即時参照更新用の予約引数です。</param>
@@ -129,7 +131,7 @@ namespace ParkourShooter.Runtime.Characters
                 var character = characters[i];
                 var isActive = i == activeIndex;
                 character.gameObject.SetActive(isActive);
-                SetCharacterControl(character, isActive);
+                NormalizeSlotTransform(character);
             }
 
             var active = ActiveCharacter;
@@ -140,14 +142,15 @@ namespace ParkourShooter.Runtime.Characters
 
             if (followCamera != null)
             {
-                followCamera.Follow = active;
+                followCamera.Follow = ControlRoot;
             }
 
             if (boss != null)
             {
-                boss.SetFollowTarget(active);
+                boss.SetFollowTarget(ControlRoot);
             }
 
+            ApplyActiveSlotSettings(active);
             ActiveCharacterChanged?.Invoke(active);
         }
 
@@ -187,7 +190,7 @@ namespace ParkourShooter.Runtime.Characters
         /// <param name="alpha">設定するアルファ値です。</param>
         private static void SetCharacterVisualAlpha(Transform character, float alpha)
         {
-            var spriteRenderer = character.GetComponent<SpriteRenderer>();
+            var spriteRenderer = character.GetComponentInChildren<SpriteRenderer>();
             if (spriteRenderer == null)
             {
                 return;
@@ -196,6 +199,54 @@ namespace ParkourShooter.Runtime.Characters
             var color = spriteRenderer.color;
             color.a = alpha;
             spriteRenderer.color = color;
+        }
+
+        /// <summary>
+        /// 切り替え前後で位置、回転、速度がズレないように状態を同期します。
+        /// </summary>
+        /// <param name="source">同期元キャラクターです。</param>
+        /// <param name="destination">同期先キャラクターです。</param>
+        private static void CopyCharacterPose(Transform source, Transform destination)
+        {
+            destination.SetPositionAndRotation(source.position, source.rotation);
+
+            var sourceBody = source.GetComponent<Rigidbody2D>();
+            var destinationBody = destination.GetComponent<Rigidbody2D>();
+            if (sourceBody == null || destinationBody == null)
+            {
+                Physics2D.SyncTransforms();
+                return;
+            }
+
+            destinationBody.position = sourceBody.position;
+            destinationBody.rotation = sourceBody.rotation;
+            destinationBody.linearVelocity = sourceBody.linearVelocity;
+            destinationBody.angularVelocity = sourceBody.angularVelocity;
+            Physics2D.SyncTransforms();
+        }
+
+        /// <summary>
+        /// 見た目スロットが共有Rootからズレないようにローカル座標を初期化します。
+        /// </summary>
+        /// <param name="character">対象の見た目スロットです。</param>
+        private static void NormalizeSlotTransform(Transform character)
+        {
+            character.localPosition = Vector3.zero;
+            character.localRotation = Quaternion.identity;
+        }
+
+        /// <summary>
+        /// アクティブな見た目スロットに設定されたキャラクター固有設定を共有Rootへ反映します。
+        /// </summary>
+        /// <param name="active">現在表示中のキャラクタースロットです。</param>
+        private void ApplyActiveSlotSettings(Transform active)
+        {
+            var slot = active.GetComponent<CharacterSlot2D>();
+            var skill = GetComponent<SkillController2D>();
+            if (slot != null && skill != null)
+            {
+                skill.SetEffectType(slot.SkillEffect);
+            }
         }
 
         /// <summary>

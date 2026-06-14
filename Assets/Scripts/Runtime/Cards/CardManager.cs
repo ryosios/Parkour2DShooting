@@ -51,7 +51,7 @@ namespace ParkourShooter.Runtime.Cards
                 scoreManager.ScoreChanged += OnScoreChanged;
             }
 
-            TeamController2D.ActiveCharacterChanged += ApplyToCharacter;
+            TeamController2D.ActiveCharacterChanged += ApplyToControlRoot;
         }
 
         /// <summary>
@@ -64,7 +64,7 @@ namespace ParkourShooter.Runtime.Cards
                 scoreManager.ScoreChanged -= OnScoreChanged;
             }
 
-            TeamController2D.ActiveCharacterChanged -= ApplyToCharacter;
+            TeamController2D.ActiveCharacterChanged -= ApplyToControlRoot;
         }
 
         /// <summary>
@@ -122,9 +122,18 @@ namespace ParkourShooter.Runtime.Cards
                 return;
             }
 
-            foreach (var character in teamController.Characters)
+            ApplyToCharacter(teamController.ControlRoot);
+        }
+
+        /// <summary>
+        /// キャラクター表示スロットが切り替わった時に共有Rootへカード効果を再適用します。
+        /// </summary>
+        /// <param name="_">表示中スロットです。カード効果は共有Rootへ適用します。</param>
+        private void ApplyToControlRoot(Transform _)
+        {
+            if (teamController != null)
             {
-                ApplyToCharacter(character);
+                ApplyToCharacter(teamController.ControlRoot);
             }
         }
 

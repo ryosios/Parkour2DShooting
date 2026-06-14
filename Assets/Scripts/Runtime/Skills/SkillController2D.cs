@@ -42,6 +42,21 @@ namespace ParkourShooter.Runtime.Skills
         private bool isActive;
 
         /// <summary>
+        /// 現在のキャラクターに対応するスキル効果へ切り替えます。
+        /// </summary>
+        /// <param name="newEffectType">新しく使用するスキル効果です。</param>
+        public void SetEffectType(SkillEffectType newEffectType)
+        {
+            if (effectType == newEffectType)
+            {
+                return;
+            }
+
+            CancelActiveSkill();
+            effectType = newEffectType;
+        }
+
+        /// <summary>
         /// 未設定の AutoAttackController2D を同じ GameObject から補完します。
         /// </summary>
         private void Awake()

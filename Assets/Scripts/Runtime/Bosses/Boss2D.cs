@@ -28,6 +28,9 @@ namespace ParkourShooter.Runtime.Bosses
         /// <summary>X 方向の追従を滑らかにする時間です。</summary>
         [SerializeField] private float xFollowSmoothTime = 0.18f;
 
+        /// <summary>X 方向の差がこの値以下なら移動を止め、微小な追従揺れを抑えます。</summary>
+        [SerializeField] private float xFollowDeadZone = 0.04f;
+
         [Header("Vertical Patrol")]
         /// <summary>ボスがランダム移動する Y 座標の範囲です。</summary>
         [SerializeField] private Vector2 verticalRange = new(-1.2f, 2.4f);
@@ -115,6 +118,7 @@ namespace ParkourShooter.Runtime.Bosses
             body = GetComponent<Rigidbody2D>();
             body.bodyType = RigidbodyType2D.Kinematic;
             body.gravityScale = 0f;
+            body.interpolation = RigidbodyInterpolation2D.Interpolate;
 
             var bossCollider = GetComponent<Collider2D>();
             bossCollider.isTrigger = true;
@@ -147,13 +151,23 @@ namespace ParkourShooter.Runtime.Bosses
 
             var currentPosition = body.position;
             var targetX = followTarget.position.x + followOffset.x;
-            var nextX = Mathf.SmoothDamp(
-                currentPosition.x,
-                targetX,
-                ref xFollowVelocity,
-                xFollowSmoothTime,
-                Mathf.Infinity,
-                Time.fixedDeltaTime);
+            var xDifference = targetX - currentPosition.x;
+            var nextX = currentPosition.x;
+            if (Mathf.Abs(xDifference) > xFollowDeadZone)
+            {
+                nextX = Mathf.SmoothDamp(
+                    currentPosition.x,
+                    targetX,
+                    ref xFollowVelocity,
+                    xFollowSmoothTime,
+                    Mathf.Infinity,
+                    Time.fixedDeltaTime);
+            }
+            else
+            {
+                xFollowVelocity = 0f;
+            }
+
             var nextY = Mathf.MoveTowards(
                 currentPosition.y,
                 verticalTargetY,

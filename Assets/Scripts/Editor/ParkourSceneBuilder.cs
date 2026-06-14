@@ -52,11 +52,11 @@ namespace ParkourShooter.Editor
             CreateChild(managers, "PoolManager");
             CreateChild(managers, "VfxManager").AddComponent<VfxManager>();
 
-            var playerRoot = CreateChild(gameRoot, "PlayerRoot");
-            var characterA = CreatePlayerCharacter(playerRoot.transform, scoreManager, "CharacterA", new Color(0.2f, 0.85f, 1f), SkillEffectType.AttackBoost);
-            var characterB = CreatePlayerCharacter(playerRoot.transform, scoreManager, "CharacterB", new Color(0.45f, 1f, 0.35f), SkillEffectType.BulletClear);
-            var characterC = CreatePlayerCharacter(playerRoot.transform, scoreManager, "CharacterC", new Color(1f, 0.55f, 0.25f), SkillEffectType.AttackBoostAndBulletClear);
-            var activeCharacter = characterA;
+            var playerRoot = CreatePlayerRoot(gameRoot.transform, scoreManager);
+            var characterA = CreateCharacterSlot(playerRoot.transform, "CharacterA", new Color(0.2f, 0.85f, 1f), SkillEffectType.AttackBoost);
+            var characterB = CreateCharacterSlot(playerRoot.transform, "CharacterB", new Color(0.45f, 1f, 0.35f), SkillEffectType.BulletClear);
+            var characterC = CreateCharacterSlot(playerRoot.transform, "CharacterC", new Color(1f, 0.55f, 0.25f), SkillEffectType.AttackBoostAndBulletClear);
+            var activeCharacter = playerRoot.transform;
 
             var enemyRoot = CreateChild(gameRoot, "EnemyRoot");
             CreateEnemy(enemyRoot.transform, "Enemy_00", new Vector3(6f, -1.4f, 0f), 2, 100);
@@ -177,24 +177,17 @@ namespace ParkourShooter.Editor
         }
 
         /// <summary>
-        /// プレイヤーキャラクター本体と操作・攻撃・スキル関連コンポーネントを生成します。
+        /// 実際に移動・攻撃・当たり判定を持つ共有プレイヤーRootを生成します。
         /// </summary>
         /// <param name="parent">配置先の親 Transform です。</param>
         /// <param name="scoreManager">グレイズスコア加算先の ScoreManager です。</param>
-        /// <param name="name">キャラクター名です。</param>
-        /// <param name="color">キャラクターの表示色です。</param>
-        /// <param name="skillEffect">キャラクターに割り当てるスキル効果です。</param>
-        /// <returns>生成されたキャラクター Transform です。</returns>
-        private static Transform CreatePlayerCharacter(
-            Transform parent,
-            ScoreManager scoreManager,
-            string name,
-            Color color,
-            SkillEffectType skillEffect)
+        /// <returns>生成されたプレイヤーRootです。</returns>
+        private static GameObject CreatePlayerRoot(Transform parent, ScoreManager scoreManager)
         {
-            var player = new GameObject(name);
+            var player = new GameObject("PlayerRoot");
             player.transform.SetParent(parent);
             player.transform.position = new Vector3(-5f, -1.25f, 0f);
+            player.transform.localScale = Vector3.one;
 
             var body = player.AddComponent<Rigidbody2D>();
             body.gravityScale = 3.2f;
@@ -204,22 +197,11 @@ namespace ParkourShooter.Editor
             var collider = player.AddComponent<BoxCollider2D>();
             collider.size = new Vector2(0.8f, 1.4f);
 
-            var sprite = player.AddComponent<SpriteRenderer>();
-            sprite.sprite = LoadSprite(CapsuleSpritePath, "Capsule");
-            sprite.color = color;
-            sprite.sortingOrder = 10;
-            player.transform.localScale = new Vector3(0.8f, 1.4f, 1f);
-
             var motor = player.AddComponent<ParkourPlayerMotor2D>();
-            var visual = player.AddComponent<SimplePlayerVisual>();
             var muzzle = CreateChild(player, "Muzzle");
             muzzle.transform.localPosition = new Vector3(0.75f, 0.15f, 0f);
             var autoAttack = player.AddComponent<AutoAttackController2D>();
             var skill = player.AddComponent<SkillController2D>();
-
-            var serializedVisual = new SerializedObject(visual);
-            serializedVisual.FindProperty("motor").objectReferenceValue = motor;
-            serializedVisual.ApplyModifiedPropertiesWithoutUndo();
 
             var serializedMotor = new SerializedObject(motor);
             serializedMotor.FindProperty("scoreManager").objectReferenceValue = scoreManager;
@@ -234,7 +216,6 @@ namespace ParkourShooter.Editor
             serializedAutoAttack.ApplyModifiedPropertiesWithoutUndo();
 
             var serializedSkill = new SerializedObject(skill);
-            serializedSkill.FindProperty("effectType").enumValueIndex = (int)skillEffect;
             serializedSkill.FindProperty("autoAttack").objectReferenceValue = autoAttack;
             serializedSkill.FindProperty("durationSeconds").floatValue = 4f;
             serializedSkill.FindProperty("cooldownSeconds").floatValue = 8f;
@@ -242,7 +223,44 @@ namespace ParkourShooter.Editor
             serializedSkill.FindProperty("additionalProjectiles").intValue = 1;
             serializedSkill.ApplyModifiedPropertiesWithoutUndo();
 
-            return player.transform;
+            return player;
+        }
+
+        /// <summary>
+        /// 共有プレイヤーRootの子として、表示とスキル種別だけを持つキャラクタースロットを生成します。
+        /// </summary>
+        /// <param name="parent">配置先のプレイヤーRootです。</param>
+        /// <param name="name">キャラクター名です。</param>
+        /// <param name="color">キャラクターの表示色です。</param>
+        /// <param name="skillEffect">このキャラクターのスキル効果です。</param>
+        /// <returns>生成されたキャラクタースロット Transform です。</returns>
+        private static Transform CreateCharacterSlot(
+            Transform parent,
+            string name,
+            Color color,
+            SkillEffectType skillEffect)
+        {
+            var slot = new GameObject(name);
+            slot.transform.SetParent(parent);
+            slot.transform.localPosition = Vector3.zero;
+            slot.transform.localScale = new Vector3(0.8f, 1.4f, 1f);
+
+            var sprite = slot.AddComponent<SpriteRenderer>();
+            sprite.sprite = LoadSprite(CapsuleSpritePath, "Capsule");
+            sprite.color = color;
+            sprite.sortingOrder = 10;
+
+            var characterSlot = slot.AddComponent<CharacterSlot2D>();
+            var serializedSlot = new SerializedObject(characterSlot);
+            serializedSlot.FindProperty("skillEffect").enumValueIndex = (int)skillEffect;
+            serializedSlot.ApplyModifiedPropertiesWithoutUndo();
+
+            var visual = slot.AddComponent<SimplePlayerVisual>();
+            var serializedVisual = new SerializedObject(visual);
+            serializedVisual.FindProperty("spriteRenderer").objectReferenceValue = sprite;
+            serializedVisual.ApplyModifiedPropertiesWithoutUndo();
+
+            return slot.transform;
         }
 
         /// <summary>
@@ -495,6 +513,7 @@ namespace ParkourShooter.Editor
             var body = boss.AddComponent<Rigidbody2D>();
             body.bodyType = RigidbodyType2D.Kinematic;
             body.gravityScale = 0f;
+            body.interpolation = RigidbodyInterpolation2D.Interpolate;
             body.constraints = RigidbodyConstraints2D.FreezeRotation;
 
             var collider = boss.AddComponent<BoxCollider2D>();
@@ -514,6 +533,7 @@ namespace ParkourShooter.Editor
             serializedBoss.FindProperty("followTarget").objectReferenceValue = followTarget;
             serializedBoss.FindProperty("muzzle").objectReferenceValue = muzzle.transform;
             serializedBoss.FindProperty("xFollowSmoothTime").floatValue = 0.18f;
+            serializedBoss.FindProperty("xFollowDeadZone").floatValue = 0.04f;
             serializedBoss.FindProperty("verticalRange").vector2Value = new Vector2(-1.2f, 2.4f);
             serializedBoss.FindProperty("verticalMoveSpeed").floatValue = 2.4f;
             serializedBoss.FindProperty("verticalWaitSeconds").vector2Value = new Vector2(0.8f, 1.8f);

@@ -12,9 +12,10 @@ namespace ParkourShooter.Runtime.Visuals
         /// <summary>状態参照用のプレイヤーモーターです。</summary>
         [SerializeField] private ParkourPlayerMotor2D motor;
 
-        /// <summary>色を制御する SpriteRenderer です。</summary>
-        private SpriteRenderer spriteRenderer;
+        /// <summary>色を制御する SpriteRenderer です。未設定時は子も含めて検索します。</summary>
+        [SerializeField] private SpriteRenderer spriteRenderer;
 
+        /// <summary>色を制御する SpriteRenderer です。</summary>
         /// <summary>開始時の RGB 色です。</summary>
         private Color baseColor;
 
@@ -23,7 +24,16 @@ namespace ParkourShooter.Runtime.Visuals
         /// </summary>
         private void Awake()
         {
-            spriteRenderer = GetComponent<SpriteRenderer>();
+            if (spriteRenderer == null)
+            {
+                spriteRenderer = GetComponentInChildren<SpriteRenderer>();
+            }
+
+            if (spriteRenderer == null)
+            {
+                return;
+            }
+
             baseColor = spriteRenderer.color;
         }
 
@@ -32,7 +42,7 @@ namespace ParkourShooter.Runtime.Visuals
         /// </summary>
         private void LateUpdate()
         {
-            if (motor == null)
+            if (motor == null || spriteRenderer == null)
             {
                 return;
             }
