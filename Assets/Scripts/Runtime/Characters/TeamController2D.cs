@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using ParkourShooter.Runtime.Audio;
 using ParkourShooter.Runtime.Bosses;
+using ParkourShooter.Runtime.Cameras;
 using ParkourShooter.Runtime.Combat;
 using ParkourShooter.Runtime.Movement;
 using ParkourShooter.Runtime.Skills;
@@ -10,26 +11,50 @@ using UnityEngine;
 
 namespace ParkourShooter.Runtime.Characters
 {
+    /// <summary>
+    /// 複数キャラクターの有効化、切り替え、カメラとボスの追従対象更新を管理します。
+    /// </summary>
     public sealed class TeamController2D : MonoBehaviour
     {
+        /// <summary>アクティブキャラクターが変更された時に通知されるイベントです。</summary>
         public static event Action<Transform> ActiveCharacterChanged;
 
+        /// <summary>切り替え対象となるキャラクター一覧です。</summary>
         [SerializeField] private List<Transform> characters = new();
+
+        /// <summary>アクティブキャラクターを追従する CinemachineCamera です。</summary>
         [SerializeField] private CinemachineCamera followCamera;
+
+        /// <summary>アクティブキャラクターを追従対象にするボスです。</summary>
         [SerializeField] private Boss2D boss;
+
+        /// <summary>キャラクター切り替え演出にかける秒数です。</summary>
         [SerializeField] private float transitionSeconds = 0.18f;
 
+        /// <summary>現在アクティブなキャラクターのインデックスです。</summary>
         private int activeIndex;
+
+        /// <summary>切り替え演出中かどうかです。</summary>
         private bool isSwitching;
 
+        /// <summary>現在操作中のキャラクターです。</summary>
         public Transform ActiveCharacter => characters.Count == 0 ? null : characters[activeIndex];
+
+        /// <summary>登録されている全キャラクターです。</summary>
         public IReadOnlyList<Transform> Characters => characters;
 
+        /// <summary>
+        /// カメラオフセット制御を準備し、初期キャラクターを有効化します。
+        /// </summary>
         private void Start()
         {
+            EnsureDynamicCameraOffset();
             SetActiveCharacter(0, true);
         }
 
+        /// <summary>
+        /// A/D 入力で前後のキャラクターへ切り替えます。
+        /// </summary>
         private void Update()
         {
             if (isSwitching || characters.Count <= 1)
@@ -47,6 +72,10 @@ namespace ParkourShooter.Runtime.Characters
             }
         }
 
+        /// <summary>
+        /// 指定インデックスへ循環切り替えを開始します。
+        /// </summary>
+        /// <param name="requestedIndex">切り替え先として要求されたインデックスです。</param>
         private void SwitchTo(int requestedIndex)
         {
             var nextIndex = (requestedIndex + characters.Count) % characters.Count;
@@ -58,6 +87,11 @@ namespace ParkourShooter.Runtime.Characters
             StartCoroutine(SwitchRoutine(nextIndex));
         }
 
+        /// <summary>
+        /// 一時的に次キャラクターを半透明表示し、切り替え完了後に操作対象を更新します。
+        /// </summary>
+        /// <param name="nextIndex">切り替え先キャラクターのインデックスです。</param>
+        /// <returns>切り替え演出用の IEnumerator です。</returns>
         private System.Collections.IEnumerator SwitchRoutine(int nextIndex)
         {
             isSwitching = true;
@@ -81,6 +115,11 @@ namespace ParkourShooter.Runtime.Characters
             isSwitching = false;
         }
 
+        /// <summary>
+        /// 指定キャラクターだけを操作可能にし、カメラとボスの追従対象を更新します。
+        /// </summary>
+        /// <param name="index">有効化するキャラクターのインデックスです。</param>
+        /// <param name="snapReferences">即時参照更新用の予約引数です。</param>
         private void SetActiveCharacter(int index, bool snapReferences)
         {
             activeIndex = Mathf.Clamp(index, 0, characters.Count - 1);
@@ -112,6 +151,11 @@ namespace ParkourShooter.Runtime.Characters
             ActiveCharacterChanged?.Invoke(active);
         }
 
+        /// <summary>
+        /// キャラクターに付与された操作系コンポーネントと Rigidbody2D を有効/無効にします。
+        /// </summary>
+        /// <param name="character">対象キャラクターです。</param>
+        /// <param name="enabled">有効化するかどうかです。</param>
         private static void SetCharacterControl(Transform character, bool enabled)
         {
             foreach (var motor in character.GetComponents<ParkourPlayerMotor2D>())
@@ -136,6 +180,11 @@ namespace ParkourShooter.Runtime.Characters
             }
         }
 
+        /// <summary>
+        /// 切り替え演出用にキャラクターの透明度だけを変更します。
+        /// </summary>
+        /// <param name="character">対象キャラクターです。</param>
+        /// <param name="alpha">設定するアルファ値です。</param>
         private static void SetCharacterVisualAlpha(Transform character, float alpha)
         {
             var spriteRenderer = character.GetComponent<SpriteRenderer>();
@@ -147,6 +196,28 @@ namespace ParkourShooter.Runtime.Characters
             var color = spriteRenderer.color;
             color.a = alpha;
             spriteRenderer.color = color;
+        }
+
+        /// <summary>
+        /// 既存シーンでも動的カメラオフセット制御が付くように補完します。
+        /// </summary>
+        private void EnsureDynamicCameraOffset()
+        {
+            if (followCamera == null)
+            {
+                return;
+            }
+
+            var dynamicOffset = followCamera.GetComponent<DynamicFollowOffset2D>();
+            if (dynamicOffset == null)
+            {
+                dynamicOffset = followCamera.gameObject.AddComponent<DynamicFollowOffset2D>();
+            }
+
+            dynamicOffset.Configure(
+                new Vector3(8.35f, 4.32f, -17f),
+                new Vector3(8.35f, 0f, -17f),
+                0.22f);
         }
     }
 }

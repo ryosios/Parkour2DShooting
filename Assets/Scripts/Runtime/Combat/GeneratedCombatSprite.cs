@@ -2,10 +2,18 @@ using UnityEngine;
 
 namespace ParkourShooter.Runtime.Combat
 {
+    /// <summary>
+    /// 弾や簡易 VFX に使う白 1px スプライトをランタイム生成して共有します。
+    /// </summary>
     public static class GeneratedCombatSprite
     {
+        /// <summary>生成済みの共有スプライトです。</summary>
         private static Sprite sprite;
 
+        /// <summary>
+        /// 共有スプライトを取得します。未生成ならその場で作成します。
+        /// </summary>
+        /// <returns>白 1px の Sprite です。</returns>
         public static Sprite Get()
         {
             if (sprite != null)

@@ -8,19 +8,39 @@ using UnityEngine.UI;
 
 namespace ParkourShooter.Runtime.UI
 {
+    /// <summary>
+    /// スコア、アクティブキャラクター、ボス HP、獲得カードを表示する HUD です。
+    /// </summary>
     public sealed class GameHudUI : MonoBehaviour
     {
+        /// <summary>スコア表示元の ScoreManager です。</summary>
         [SerializeField] private ScoreManager scoreManager;
+
+        /// <summary>カード獲得イベントを購読する CardManager です。</summary>
         [SerializeField] private CardManager cardManager;
+
+        /// <summary>アクティブキャラクター表示元の TeamController2D です。</summary>
         [SerializeField] private TeamController2D teamController;
+
+        /// <summary>HP 表示元の Boss2D です。</summary>
         [SerializeField] private Boss2D boss;
 
         [Header("Text")]
+        /// <summary>スコア表示用テキストです。</summary>
         [SerializeField] private Text scoreText;
+
+        /// <summary>現在のアクティブキャラクター表示用テキストです。</summary>
         [SerializeField] private Text activeCharacterText;
+
+        /// <summary>ボス HP 表示用テキストです。</summary>
         [SerializeField] private Text bossHpText;
+
+        /// <summary>獲得カード一覧表示用テキストです。</summary>
         [SerializeField] private Text cardText;
 
+        /// <summary>
+        /// HUD 更新に必要なイベントを購読します。
+        /// </summary>
         private void OnEnable()
         {
             if (scoreManager != null)
@@ -41,6 +61,9 @@ namespace ParkourShooter.Runtime.UI
             TeamController2D.ActiveCharacterChanged += UpdateActiveCharacter;
         }
 
+        /// <summary>
+        /// 初期表示を現在のゲーム状態に合わせます。
+        /// </summary>
         private void Start()
         {
             UpdateScore(scoreManager != null ? scoreManager.CurrentScore : 0);
@@ -53,6 +76,9 @@ namespace ParkourShooter.Runtime.UI
             }
         }
 
+        /// <summary>
+        /// HUD 更新イベントの購読を解除します。
+        /// </summary>
         private void OnDisable()
         {
             if (scoreManager != null)
@@ -73,6 +99,10 @@ namespace ParkourShooter.Runtime.UI
             TeamController2D.ActiveCharacterChanged -= UpdateActiveCharacter;
         }
 
+        /// <summary>
+        /// スコア表示を更新します。
+        /// </summary>
+        /// <param name="score">現在のスコアです。</param>
         private void UpdateScore(int score)
         {
             if (scoreText != null)
@@ -81,6 +111,10 @@ namespace ParkourShooter.Runtime.UI
             }
         }
 
+        /// <summary>
+        /// アクティブキャラクター名の表示を更新します。
+        /// </summary>
+        /// <param name="activeCharacter">現在操作中のキャラクターです。</param>
         private void UpdateActiveCharacter(Transform activeCharacter)
         {
             if (activeCharacterText != null)
@@ -91,6 +125,11 @@ namespace ParkourShooter.Runtime.UI
             }
         }
 
+        /// <summary>
+        /// ボス HP 表示を更新します。
+        /// </summary>
+        /// <param name="currentHp">現在 HP です。</param>
+        /// <param name="maxHp">最大 HP です。</param>
         private void UpdateBossHp(int currentHp, int maxHp)
         {
             if (bossHpText != null)
@@ -99,6 +138,10 @@ namespace ParkourShooter.Runtime.UI
             }
         }
 
+        /// <summary>
+        /// 獲得カード名を HUD に追加し、簡易アニメーションを再生します。
+        /// </summary>
+        /// <param name="card">獲得したカード定義です。</param>
         private void AddCard(EquipmentCardDefinition card)
         {
             if (cardText == null || card == null)
