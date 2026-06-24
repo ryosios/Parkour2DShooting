@@ -17,8 +17,11 @@ namespace ParkourShooter.Runtime.Movement
         [SerializeField] private float autoRunSpeed = 7f;
 
         [Header("Boost Jump")]
-        /// <summary>上下ブースト時に加える前方向のインパルスです。</summary>
+        /// <summary>上下ブースト時に通常走行速度へ加える前方向速度です。</summary>
         [SerializeField] private float boostForwardImpulse = 4f;
+
+        /// <summary>ブーストで増えた前方向速度が通常速度へ戻る速さです。</summary>
+        [SerializeField] private float boostForwardDecay = 8f;
 
         /// <summary>W 入力で上方向へ加えるインパルスです。</summary>
         [SerializeField] private float upperBoostImpulse = 11f;
@@ -50,6 +53,9 @@ namespace ParkourShooter.Runtime.Movement
 
         /// <summary>小数点以下のグレイズスコア繰り越しです。</summary>
         private float grazeScoreRemainder;
+
+        /// <summary>グレイズ領域へ吸着し始めた瞬間のX方向速度です。</summary>
+        private float grazeEntryForwardSpeed;
 
         /// <summary>現在のキャラクター状態です。</summary>
         public CharacterState State { get; private set; } = CharacterState.GroundRun;
@@ -116,7 +122,13 @@ namespace ParkourShooter.Runtime.Movement
 
             body.gravityScale = defaultGravityScale;
             var velocity = body.linearVelocity;
-            velocity.x = autoRunSpeed + moveSpeedBonus;
+            var autoRunTargetSpeed = autoRunSpeed + moveSpeedBonus;
+            velocity.x = velocity.x < autoRunTargetSpeed
+                ? autoRunTargetSpeed
+                : Mathf.MoveTowards(
+                    velocity.x,
+                    autoRunTargetSpeed,
+                    Mathf.Max(0f, boostForwardDecay) * Time.fixedDeltaTime);
             body.linearVelocity = velocity;
 
             if (State != CharacterState.Jump)
@@ -136,9 +148,15 @@ namespace ParkourShooter.Runtime.Movement
                 return;
             }
 
+            var wasInGrazeArea = IsInGrazeArea;
             if (!activeGrazeAreas.Contains(grazeArea))
             {
                 activeGrazeAreas.Add(grazeArea);
+            }
+
+            if (!wasInGrazeArea)
+            {
+                grazeEntryForwardSpeed = body.linearVelocity.x;
             }
 
             body.gravityScale = 0f;
@@ -179,9 +197,9 @@ namespace ParkourShooter.Runtime.Movement
             }
 
             State = CharacterState.Jump;
-
-            StopVerticalMotion();
-            body.AddForce(new Vector2(boostForwardImpulse, direction.y * verticalImpulse), ForceMode2D.Impulse);
+            body.linearVelocity = new Vector2(
+                autoRunSpeed + moveSpeedBonus + boostForwardImpulse,
+                direction.y * verticalImpulse);
         }
 
         /// <summary>
@@ -192,7 +210,7 @@ namespace ParkourShooter.Runtime.Movement
             body.gravityScale = 0f;
             var grazeArea = GetNearestGrazeArea();
             var velocity = body.linearVelocity;
-            velocity.x = autoRunSpeed + moveSpeedBonus;
+            velocity.x = grazeEntryForwardSpeed;
             velocity.y = 0f;
 
             if (grazeArea != null)

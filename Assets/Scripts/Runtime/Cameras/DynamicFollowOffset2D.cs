@@ -11,7 +11,7 @@ namespace ParkourShooter.Runtime.Cameras
     public sealed class DynamicFollowOffset2D : MonoBehaviour
     {
         /// <summary>開始時や低い位置にいる時のカメラオフセットです。</summary>
-        [SerializeField] private Vector3 lowerScreenOffset = new(8.35f, 4.32f, -17f);
+        [SerializeField] private Vector3 lowerScreenOffset = new(8.35f, 2.25f, -17f);
 
         /// <summary>ジャンプ後にキャラクターを中央寄せするカメラオフセットです。</summary>
         [SerializeField] private Vector3 upperScreenOffset = new(8.35f, 0f, -17f);
@@ -24,6 +24,9 @@ namespace ParkourShooter.Runtime.Cameras
 
         /// <summary>FollowOffset を切り替える時の補間時間です。</summary>
         [SerializeField] private float smoothTime = 0.22f;
+
+        /// <summary>ターゲットをX方向へ追従する時の遅延時間です。0なら即時追従します。</summary>
+        [SerializeField, Min(0f)] private float horizontalFollowDamping;
 
         /// <summary>制御対象の CinemachineCamera です。</summary>
         private CinemachineCamera cinemachineCamera;
@@ -51,7 +54,21 @@ namespace ParkourShooter.Runtime.Cameras
             cinemachineCamera = GetComponent<CinemachineCamera>();
             cinemachineFollow = GetComponent<CinemachineFollow>();
 
+            ApplyHorizontalFollowDamping();
             SnapToInitialOffset();
+        }
+
+        /// <summary>CinemachineFollowへX方向の追従ダンピングを反映します。</summary>
+        private void ApplyHorizontalFollowDamping()
+        {
+            if (cinemachineFollow == null)
+            {
+                return;
+            }
+
+            var damping = cinemachineFollow.TrackerSettings.PositionDamping;
+            damping.x = Mathf.Max(0f, horizontalFollowDamping);
+            cinemachineFollow.TrackerSettings.PositionDamping = damping;
         }
 
         /// <summary>

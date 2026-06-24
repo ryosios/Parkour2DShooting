@@ -206,6 +206,7 @@ namespace ParkourShooter.Editor
             var serializedMotor = new SerializedObject(motor);
             serializedMotor.FindProperty("scoreManager").objectReferenceValue = scoreManager;
             serializedMotor.FindProperty("grazeScorePerSecond").floatValue = 20f;
+            serializedMotor.FindProperty("boostForwardDecay").floatValue = 8f;
             serializedMotor.ApplyModifiedPropertiesWithoutUndo();
 
             var serializedAutoAttack = new SerializedObject(autoAttack);
@@ -534,7 +535,10 @@ namespace ParkourShooter.Editor
             serializedBoss.FindProperty("muzzle").objectReferenceValue = muzzle.transform;
             serializedBoss.FindProperty("xFollowSmoothTime").floatValue = 0.18f;
             serializedBoss.FindProperty("xFollowDeadZone").floatValue = 0.04f;
+            serializedBoss.FindProperty("horizontalViewportPadding").floatValue = 0.03f;
+            serializedBoss.FindProperty("verticalViewportPadding").floatValue = 0.05f;
             serializedBoss.FindProperty("verticalRange").vector2Value = new Vector2(-1.2f, 2.4f);
+            serializedBoss.FindProperty("verticalViewportRange").vector2Value = new Vector2(0.28f, 0.72f);
             serializedBoss.FindProperty("verticalMoveSpeed").floatValue = 2.4f;
             serializedBoss.FindProperty("verticalWaitSeconds").vector2Value = new Vector2(0.8f, 1.8f);
             serializedBoss.FindProperty("maxHp").intValue = 30;
@@ -600,6 +604,7 @@ namespace ParkourShooter.Editor
 
             var follow = cinemachineCameraObject.AddComponent<CinemachineFollow>();
             follow.FollowOffset = new Vector3(8.35f, 4.32f, -17f);
+            follow.TrackerSettings.PositionDamping = new Vector3(0f, 1f, 1f);
 
             var dynamicOffset = cinemachineCameraObject.AddComponent<DynamicFollowOffset2D>();
             dynamicOffset.Configure(

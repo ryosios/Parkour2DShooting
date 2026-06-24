@@ -31,9 +31,22 @@ namespace ParkourShooter.Runtime.Bosses
         /// <summary>X 方向の差がこの値以下なら移動を止め、微小な追従揺れを抑えます。</summary>
         [SerializeField] private float xFollowDeadZone = 0.04f;
 
+        [Header("Screen Bounds")]
+        /// <summary>ボスの移動範囲を制限する描画カメラです。未設定時は MainCamera を使用します。</summary>
+        [SerializeField] private Camera viewportCamera;
+
+        /// <summary>画面左右に確保するビューポート座標単位の余白です。</summary>
+        [SerializeField, Range(0f, 0.25f)] private float horizontalViewportPadding = 0.03f;
+
+        /// <summary>画面上下に確保するビューポート座標単位の余白です。</summary>
+        [SerializeField, Range(0f, 0.25f)] private float verticalViewportPadding = 0.05f;
+
         [Header("Vertical Patrol")]
         /// <summary>ボスがランダム移動する Y 座標の範囲です。</summary>
         [SerializeField] private Vector2 verticalRange = new(-1.2f, 2.4f);
+
+        /// <summary>ボスがランダム移動する画面内 Y 座標の範囲です。</summary>
+        [SerializeField] private Vector2 verticalViewportRange = new(0.28f, 0.72f);
 
         /// <summary>Y 方向の移動速度です。</summary>
         [SerializeField] private float verticalMoveSpeed = 2.4f;
@@ -77,6 +90,9 @@ namespace ParkourShooter.Runtime.Bosses
         /// <summary>現在目指しているランダム Y 座標です。</summary>
         private float verticalTargetY;
 
+        /// <summary>現在目指している画面内の Y 座標です。</summary>
+        private float verticalTargetViewportY;
+
         /// <summary>次の Y 移動を開始できるゲーム内時刻です。</summary>
         private float nextVerticalMoveTime;
 
@@ -85,6 +101,9 @@ namespace ParkourShooter.Runtime.Bosses
 
         /// <summary>ボス本体の移動に使用する Rigidbody2D です。</summary>
         private Rigidbody2D body;
+
+        /// <summary>画面内制限で見た目の大きさを取得する Renderer です。</summary>
+        private Renderer bossRenderer;
 
         /// <summary>ボスが生存しているかどうかです。</summary>
         public bool IsAlive => currentHp > 0;
@@ -119,6 +138,7 @@ namespace ParkourShooter.Runtime.Bosses
             body.bodyType = RigidbodyType2D.Kinematic;
             body.gravityScale = 0f;
             body.interpolation = RigidbodyInterpolation2D.Interpolate;
+            bossRenderer = GetComponentInChildren<Renderer>();
 
             var bossCollider = GetComponent<Collider2D>();
             bossCollider.isTrigger = true;
@@ -130,6 +150,9 @@ namespace ParkourShooter.Runtime.Bosses
         private void Start()
         {
             verticalTargetY = transform.position.y;
+            verticalTargetViewportY = ResolveViewportCamera()
+                ? viewportCamera.WorldToViewportPoint(transform.position).y
+                : 0.5f;
             nextVerticalMoveTime = Time.time + UnityEngine.Random.Range(
                 verticalWaitSeconds.x,
                 verticalWaitSeconds.y);
@@ -170,10 +193,88 @@ namespace ParkourShooter.Runtime.Bosses
 
             var nextY = Mathf.MoveTowards(
                 currentPosition.y,
-                verticalTargetY,
+                GetVerticalTargetWorldY(currentPosition),
                 verticalMoveSpeed * Time.fixedDeltaTime);
 
-            body.MovePosition(new Vector2(nextX, nextY));
+            body.MovePosition(ClampToViewport(new Vector2(nextX, nextY)));
+        }
+
+        /// <summary>
+        /// Perspective 投影後のボス全体が余白込みでカメラ内に収まるよう、移動先を補正します。
+        /// </summary>
+        /// <param name="desiredPosition">補正前の移動先ワールド座標です。</param>
+        /// <returns>カメラ内に制限された移動先ワールド座標です。</returns>
+        private Vector2 ClampToViewport(Vector2 desiredPosition)
+        {
+            if (!ResolveViewportCamera())
+            {
+                return desiredPosition;
+            }
+
+            var desiredWorldPosition = new Vector3(
+                desiredPosition.x,
+                desiredPosition.y,
+                transform.position.z);
+            var viewportPosition = viewportCamera.WorldToViewportPoint(desiredWorldPosition);
+            if (viewportPosition.z <= 0f)
+            {
+                return desiredPosition;
+            }
+
+            var rendererExtents = bossRenderer != null ? bossRenderer.bounds.extents : Vector3.zero;
+            var horizontalExtent = Mathf.Abs(
+                viewportCamera.WorldToViewportPoint(desiredWorldPosition + Vector3.right * rendererExtents.x).x -
+                viewportPosition.x);
+            var verticalExtent = Mathf.Abs(
+                viewportCamera.WorldToViewportPoint(desiredWorldPosition + Vector3.up * rendererExtents.y).y -
+                viewportPosition.y);
+
+            var minimumX = horizontalViewportPadding + horizontalExtent;
+            var maximumX = 1f - horizontalViewportPadding - horizontalExtent;
+            var minimumY = verticalViewportPadding + verticalExtent;
+            var maximumY = 1f - verticalViewportPadding - verticalExtent;
+
+            viewportPosition.x = minimumX <= maximumX
+                ? Mathf.Clamp(viewportPosition.x, minimumX, maximumX)
+                : 0.5f;
+            viewportPosition.y = minimumY <= maximumY
+                ? Mathf.Clamp(viewportPosition.y, minimumY, maximumY)
+                : 0.5f;
+
+            var clampedWorldPosition = viewportCamera.ViewportToWorldPoint(viewportPosition);
+            return new Vector2(clampedWorldPosition.x, clampedWorldPosition.y);
+        }
+
+        /// <summary>MainCamera を補完し、画面座標を使用できるか判定します。</summary>
+        /// <returns>使用可能なカメラがある場合は true です。</returns>
+        private bool ResolveViewportCamera()
+        {
+            if (viewportCamera == null)
+            {
+                viewportCamera = Camera.main;
+            }
+
+            return viewportCamera != null;
+        }
+
+        /// <summary>
+        /// 現在の画面内目標 Y を、ボスと同じ奥行きのワールド Y 座標へ変換します。
+        /// </summary>
+        /// <param name="currentPosition">現在のボス座標です。</param>
+        /// <returns>移動先のワールド Y 座標です。</returns>
+        private float GetVerticalTargetWorldY(Vector2 currentPosition)
+        {
+            if (!ResolveViewportCamera())
+            {
+                return verticalTargetY;
+            }
+
+            var viewportPosition = viewportCamera.WorldToViewportPoint(new Vector3(
+                currentPosition.x,
+                currentPosition.y,
+                transform.position.z));
+            viewportPosition.y = verticalTargetViewportY;
+            return viewportCamera.ViewportToWorldPoint(viewportPosition).y;
         }
 
         /// <summary>
@@ -241,7 +342,13 @@ namespace ParkourShooter.Runtime.Bosses
         /// </summary>
         private void UpdateVerticalTarget()
         {
-            var hasArrived = Mathf.Abs(body.position.y - verticalTargetY) <= 0.02f;
+            var hasArrived = ResolveViewportCamera()
+                ? Mathf.Abs(
+                    viewportCamera.WorldToViewportPoint(new Vector3(
+                        body.position.x,
+                        body.position.y,
+                        transform.position.z)).y - verticalTargetViewportY) <= 0.01f
+                : Mathf.Abs(body.position.y - verticalTargetY) <= 0.02f;
             if (isMovingVertically)
             {
                 if (hasArrived)
@@ -261,6 +368,9 @@ namespace ParkourShooter.Runtime.Bosses
             }
 
             verticalTargetY = UnityEngine.Random.Range(verticalRange.x, verticalRange.y);
+            verticalTargetViewportY = UnityEngine.Random.Range(
+                Mathf.Min(verticalViewportRange.x, verticalViewportRange.y),
+                Mathf.Max(verticalViewportRange.x, verticalViewportRange.y));
             isMovingVertically = true;
         }
 

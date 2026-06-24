@@ -263,12 +263,11 @@ namespace ParkourShooter.Runtime.Characters
             if (dynamicOffset == null)
             {
                 dynamicOffset = followCamera.gameObject.AddComponent<DynamicFollowOffset2D>();
+                dynamicOffset.Configure(
+                    new Vector3(8.35f, 4.32f, -17f),
+                    new Vector3(8.35f, 0f, -17f),
+                    0.22f);
             }
-
-            dynamicOffset.Configure(
-                new Vector3(8.35f, 4.32f, -17f),
-                new Vector3(8.35f, 0f, -17f),
-                0.22f);
         }
     }
 }
